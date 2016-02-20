@@ -1,0 +1,244 @@
+---
+title: "Response of Guinea Pig Incisor Teeth Odontoblasts to Vitamin C Dose and Delivery Method"
+author: "Jonathan Owen"
+date: "January 31, 2016"
+output: rmarkdown::tufte_handout
+---
+
+Introduction
+============
+Statistical inference on whether variations of guinea pig tooth length were 
+related to the dose and form of vitamin C supplmentation in their diets is 
+reported here.
+
+Data
+===
+Data are taken from a monograph by C.I. Bliss[^1] but were originally reported 
+by E.W. Crampton.[^2]  A total of 60 guinea pigs were randomly assigned to 
+treatment groups of 10 that were fed a basal diet and supplemental vitamin C as 
+either orange juice or pure ascorbic acid at one of three dose levels 
+(0.5, 1.0, and 2.0 mg per day).  Measurements on the incisor teeth of each 
+guinea pig were made after 42 days of feeding. The response is the length of 
+odontoblast[^3] cells observed under a microscope (at 440x magnification).  
+\newthought{In the data file} there are 60 observations of 3 variables  
+`len` \enspace \enspace odontoblast length, a numeric value  
+`supp` \enspace  vitamin C delivery method, a 2-level factor with values  
+ \ \enspace \enspace \enspace \enspace \enspace ascorbic acid (`VC`) or orange 
+ juice (`OJ`)  
+`dose` \enspace  vitamin C dose in mg per day with values 0.5, 1.0, and 2.0
+
+
+
+
+Exploratory Data Analysis
+==========================
+A basic summary of the `ToothGrowth` data is included in Table 1 and, in Figure 
+1, a scatterplot shows the variation of odontoblast length with vitamin C dose. In the 
+plot, delivery method is indicated by the color of the points. The mean 
+odontoblast lengths from Table 1 are included next to the relevant data in 
+Figure 1. 
+
+```{r, meansTooth, echo = FALSE, message = FALSE, results = "asis"}
+library(dplyr)
+library(ztable)
+library(xtable)
+options(xtable.type = "latex")
+
+edaTooth <- ToothGrowth %>%
+              group_by(supp, dose) %>%
+              summarise(mLen = mean(len), vLen = sd(len)^2)
+edaTooth <- data.frame(edaTooth)
+oldNames <- names(edaTooth)
+prepXTooth <- cbind(c("ascorbic acid", "", "", "orange juice", "", ""),edaTooth)
+names(prepXTooth) <- c("supplement", "", "dose", "mean", "variance")
+xTooth <- xtable(prepXTooth[, -2],
+                 caption = "Summary of \\texttt{ToothGrowth} data")
+print(xTooth, 
+      include.rownames = FALSE, 
+      comment = FALSE)
+
+
+```  
+
+
+
+\noindent The summarized data and plot suggest that odontoblast length increases 
+with vitamin C dose. The two delivery methods give different response 
+levels as odontoblasts in guinea pigs that were given orange juice (red points) 
+appear to be longer than those given an equivalent dose of ascorbic acid (blue 
+points). An exception to this might be for the 2.0 mg per day dose, for which 
+the mean odontoblast length is similar for vitamin C delivered as 
+orange juice (26.06) and ascorbic acid (26.14). Related to this, for orange 
+juice the increase in odontoblast length between 1.0 mg per day (22.70) and 2.0 
+mg per day (26.06) may not be large enough to be significant.
+
+
+
+
+\newthought {Density curves} are included in the right margin of the scatterplot. 
+These approximate the distributions of odontoblast lengths with a moving average 
+of frequency. The implications of the shapes of these curves for assumptions in 
+hypothesis testing will be discussed below.
+
+```{r plotcode, echo=FALSE, message = FALSE, fig.cap = "Scatterplot (with jitter added) of guinea pig incisor odontoblast length vs vitamin C dose delivered as either pure ascorbic acid or orange juice. Marginal density plots show the distribution of osteoblast lengths for each treatment."}
+library(ggplot2)
+library(ggthemes)
+library(ggExtra)
+library(grid)
+library(gridExtra)
+library(htmlTable)
+
+#names(meansTooth) <- oldNames
+
+jitterTooth <- ggplot(data = ToothGrowth,
+                      aes(x = dose, y = len, 
+                          color = factor(supp, labels =c("orange juice", 
+                                                         "ascorbic acid"))))   +
+             theme_bw()                                                        +
+             theme(text = element_text(size = 7, family = "serif"),
+                   legend.title = element_blank(),
+                   legend.key = element_blank(),
+                   legend.key.height = unit(0.5, "line"),
+                   legend.key.width = unit(0.5, "line"),
+                   legend.background = element_blank(),
+                   legend.position = c(0.175, 0.95))                           +
+             geom_jitter(shape = 19, alpha = 0.5,
+                         position = position_jitter(width = 0.05))             +
+             labs(x = "dose, mg vitamin C per day", y = "odontoblast length")  
+
+densityTooth <- ggplot()                                                       + 
+                facet_grid(~ dose)                                             +
+                theme(text = element_text(size = 7, family = "serif"),
+                      legend.position = "none",
+                      panel.background = element_blank(),
+                      panel.grid.major = element_blank(),
+                      panel.grid.minor = element_blank(),
+                      axis.text = element_blank(),
+                      axis.ticks = element_blank(),
+                      axis.title.x = element_text(hjust = 0.35),
+                      axis.title.y = element_blank(),
+                      strip.text.x = element_blank(),
+                      strip.background = element_blank(),
+                      plot.margin = unit(c(0.4, 0, 0.5, -1.5), "lines"))       +
+                geom_line(data = ToothGrowth,
+                          aes(x = len, 
+                              color = factor(supp)),
+                          alpha = 0.75,
+                          stat = "density")                                    +
+                geom_text(data = edaTooth, 
+                          aes(x = mLen, 
+                              y = c(0.17, 0.17, 0.16, 0.16, 0.15, 0.07), 
+                              label = format(mLen, digits = 4),  
+                              color = factor(supp)),
+                          size = 1.75, family = "serif", 
+                          hjust = 1, vjust = 1)                               +
+                coord_flip()
+
+grid.arrange(jitterTooth, densityTooth, ncol = 2, widths = c(4,2.5))
+```  
+
+
+Hypothesis Tests
+================
+Student's t-tests were used to test multiple hypotheses of whether 
+tooth lengths for two treatments were significantly different. For each t-test, 
+it is assumed that the data are sampled from independent and identically 
+distributed populations.
+The density curves in Figure 1 address the validity of the assumption.  Although 
+curves are not exactly those of a normal distribution, they are consistent with 
+what might be observed for relatively small samples (n = 10) from a normal 
+distribution.
+Based on the variances in Table 1 and the width of the density curves in Figure 
+1, it did not seem appropriate to assume that the populations have equal variance.
+Testing multiple hypotheses can introduce errors. Using $\alpha$ = 0.05 means we 
+expect that in 1 out of every 20 tests, the null hypothesis would incorrectly be rejected 
+(type 1 error). To control this type of error, adjusted $\alpha$ values were used. The 
+adjustment is based on the rank of the calculated $p$-value. For *i*^th^ lowest $p$-value of the 9 tests, $\alpha_i$ is 
+taken as its rank multiplied by 0.5/9 (approximately 0.0056). If $p_i$ is less than $\alpha_i$ then the null hypothesis 
+is rejected.  The hypothesis tests with $p_i$ and $\alpha_i$ are reported in Table 2.  
+
+
+```{r hypothesistest, echo = FALSE, results="asis", message = FALSE} 
+dfH <- data.frame(supp1  = c(rep("VC", 3), rep("OJ", 3), rep("VC", 3)), 
+                            dose1  = rep(c(0.5, 1.0, 2.0), 3),
+                            supp2  = c(rep("VC", 3), rep("OJ", 6)),
+                            dose2  = c(rep(c(1.0, 2.0, 0.5), 2),
+                                       0.5, 1.0, 2.0))
+
+
+
+for (i in 1:9)  {
+  outTests <- t.test(ToothGrowth[ToothGrowth$supp == dfH[i, 1] & 
+                                         ToothGrowth$dose == dfH[i, 2],1],
+                             ToothGrowth[ToothGrowth$supp == dfH[i, 3] & 
+                                         ToothGrowth$dose == dfH[i, 4],1],
+                     paired = FALSE,
+                     var.equal = FALSE)
+  dfH$diffM[i]   <- outTests$estimate[1] - outTests$estimate[2]
+  dfH$lowCI[i]   <- outTests$conf.int[1]
+  dfH$upCI[i]  <- outTests$conf.int[2]
+  dfH$p[i]  <- outTests$p.value
+}
+dfH$rankP <- rank(dfH$p)
+dfH$iAlpha <- dfH$rankP * 0.05/9
+dfH <- cbind(dfH, c("ascorbic acid", "", "", "orange juice", "", "", "ascorbic acid", "vs", "orange juice"))
+names(dfH) <- c("supp1", " ", "supp2", "  ", "$\\Delta_{mean}$", "   ", "    ", "     ", "rank", "      ", "")
+
+
+xH <- xtable(dfH[,c(11, 2, 4, 6, 5, 7:8, 10)],
+             digits = c(0, 0, 1, 1, 2, 2, 2, 4, 4),
+             align = c(rep("l", 2), rep("r", 5), rep("c", 2)),
+             caption = "Hypothesis tests on \\texttt{ToothGrowth} data set. Different doses (in mg per day) are compared for each delivery method. Then the two delivery methods are compared for each dose. Unadjusted $p$ values and an $\\alpha$ value adjusted by the $p$ value rank are reported for each test.")
+addtorow <- list()
+addtorow$pos <- list(0)
+addtorow$command <- "&  \\multicolumn{2}{c}{dose} &{2.5\\%} &{50\\%} &{97.5\\%} &{$p$}&{$\\alpha_i$}\\\\\n"
+
+print(xH, 
+      include.rownames = FALSE, 
+      comment = FALSE,
+      add.to.row = addtorow,
+      sanitize.text.function = function(x) {x})                
+
+```  
+
+Conclusions
+===========
+Based on the assumptions described in the *Hypothesis Tests* section and using 
+corrections for testing multiple hypotheses, the following conclusions can be made. 
+The null hypotheses should be rejected for all tests apart from comparing 2 mg/day ascorbic 
+acid to 2 mg/day orange juice. This means that  
+(i) Odontoblasts lengths differ significantly between any pair of doses as ascorbic acid, with the length increasing as 
+dose increases  
+(ii) Odontoblasts lengths differ significantly between any pair of doses orange juice, with the length increasing as 
+dose increases  
+(iii) Odontoblasts lengths differ significantly between ascorbic acid and orange juice at 0.5 mg/day, with the length being greater 
+when delivery is by orange juice  
+(iv) Odontoblasts lengths differ significantly between ascorbic acid and orange juice at 1.0 mg/day, with the length being greater 
+when delivery is by orange juice  
+  
+\newpage
+
+Appendix
+========
+```{r, ref.label = "plotcode", eval=FALSE}
+```  
+
+```{r, ref.label = "hypothesistest", eval=FALSE}
+```  
+  
+[^1]:  C.I. Bliss.  
+The Statistics of Bioassay.  
+Academic Press, New York, 1952.  
+
+[^2]:  E.W. Crampton.  
+The Growth of the Odontoblasts of  
+the Incisor Tooth as a Criterion of the  
+Vitamin C Intake of the Guinea Pig.  
+*J. Nutrition* **33** 491-504 (1947).  
+
+[^3]:  Odontoblasts are columnar cells  
+lying at the interface of a tooth's inner  
+enamel surface with the dental pulp.  
+Their function is associated with the  
+production of dentine.  
+
